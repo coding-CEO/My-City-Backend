@@ -1,0 +1,24 @@
+{
+  "name": "my-city-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main_build/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.ts",
+    "build": "tsc -p .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "ts-node": "^10.2.1",
+    "typescript": "^4.3.5"
+  },
+  "dependencies": {
+    "@types/express": "^4.17.13",
+    "@types/node": "^16.6.2",
+    "express": "^4.17.1",
+    "nodemon": "^2.0.12"
+  }
+}
