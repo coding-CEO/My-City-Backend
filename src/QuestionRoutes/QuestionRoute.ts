@@ -22,7 +22,7 @@ router.get("/", (req: Request<any, any, any, ReqQuery>, res: Response) => {
   }
   db_pool.getConnection((err, db_con) => {
     if (err) {
-      return res.status(500).send("Database Query Failed");
+      return res.status(500).send("Database Query Failed " + err.message);
     }
 
     let query = "SELECT * FROM question";
@@ -58,7 +58,7 @@ router.get("/", (req: Request<any, any, any, ReqQuery>, res: Response) => {
     db_con.query(query, values, (err, rows) => {
       db_con.release();
       if (err) {
-        return res.status(500).send("Database Query Failed" + err);
+        return res.status(500).send("Database Query Failed" + err.message);
       }
       return res.send(rows);
     });
@@ -100,7 +100,7 @@ interface Question {
 router.post("/", (req: Request<any, any, Question>, res: Response) => {
   upload(req, res, (err) => {
     if (err) {
-      return res.status(500).send("Image upload error " + err);
+      return res.status(500).send("Image upload error");
     }
     let questionImgUrl = "";
     if (req.file) {
@@ -110,7 +110,7 @@ router.post("/", (req: Request<any, any, Question>, res: Response) => {
 
     db_pool.getConnection((err, db_con) => {
       if (err) {
-        return res.status(500).send("Database Error " + err);
+        return res.status(500).send("Database Error " + err.message);
       }
 
       const query =
@@ -132,7 +132,7 @@ router.post("/", (req: Request<any, any, Question>, res: Response) => {
         (err, rows) => {
           db_con.release();
           if (err) {
-            return res.status(500).send("Database Error " + err);
+            return res.status(500).send("Database Error " + err.message);
           }
           return res.send({ questionId: rows.insertId });
         }
@@ -147,8 +147,19 @@ interface ReqParams {
   questionId: number;
 }
 router.get("/:questionId", (req: Request<ReqParams>, res: Response) => {
-  //TODO: complete this
-  res.send(req.params);
+  db_pool.getConnection((err, db_con) => {
+    if (err) {
+      return res.status(500).send("Database Error " + err.message);
+    }
+    const query = "SELECT * FROM question WHERE questionId = ? LIMIT 1";
+    db_con.query(query, [req.params.questionId], (err, rows) => {
+      db_con.release();
+      if (err) {
+        return res.status(500).send("Database Error " + err.message);
+      }
+      return res.send(rows);
+    });
+  });
 });
 
 export default router;
