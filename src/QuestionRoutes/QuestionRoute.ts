@@ -1,31 +1,147 @@
 import express, { Request, Response } from "express";
 import db_pool from "../utils/db";
+import multer from "multer";
+import fs from "fs";
 
 const router = express.Router();
 
-router.get("/", (req: Request, res: Response) => {
-  //TODO: return questions after sql query
+interface ReqQuery {
+  hashedAadharNumber?: string;
+  stateIndex?: string;
+  cityIndex?: string;
+  question_type?: string;
+}
+
+router.get("/", (req: Request<any, any, any, ReqQuery>, res: Response) => {
+  if (
+    !req.query.cityIndex ||
+    !req.query.stateIndex ||
+    !req.query.question_type
+  ) {
+    return res.status(400).send("Wrong Query Params");
+  }
   db_pool.getConnection((err, db_con) => {
     if (err) {
       return res.status(500).send("Database Query Failed");
     }
 
-    db_con.beginTransaction((err) => {
-      if (err) throw err;
+    let query = "SELECT * FROM question";
+    let whereClause = "";
+    let values: any[] = [];
+    if (req.query.stateIndex !== "0") {
+      whereClause += "stateIndex = ? AND ";
+      values.push(Number(req.query.stateIndex) - 1);
+    }
+    if (req.query.cityIndex !== "0") {
+      whereClause += "cityIndex = ? AND ";
+      values.push(Number(req.query.cityIndex) - 1);
+    }
+    if (req.query.hashedAadharNumber) {
+      whereClause += "hashedAadharNumber = ? AND ";
+      values.push(req.query.hashedAadharNumber);
+    }
+    if (req.query.question_type === "1") {
+      whereClause += "answerId >= ? AND ";
+      values.push(0);
+    } else if (req.query.question_type === "2") {
+      whereClause += "answerId < ? AND ";
+      values.push(0);
+    }
 
-      db_con.query("SELECT * FROM question", (err, rows) => {
-        if (err) {
-          return db_con.rollback(() => {
-            throw err;
-          });
-        }
+    if (whereClause.length > 0) {
+      whereClause = whereClause.substring(0, whereClause.length - 5);
+      query += " WHERE " + whereClause;
+    }
 
-        console.log(rows);
-        return res.send(rows);
-      });
+    query += " ORDER BY timestamp DESC";
+
+    db_con.query(query, values, (err, rows) => {
+      db_con.release();
+      if (err) {
+        return res.status(500).send("Database Query Failed" + err);
+      }
+      return res.send(rows);
     });
   });
 });
+
+/////////////////////////////////
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    let dir = "./public/temp";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    } else {
+      cb(null, dir);
+    }
+  },
+  filename: (req, file, cb) => {
+    let fileInfo = file.mimetype.split("/");
+    cb(null, Date.now() + "." + fileInfo[1]);
+  },
+});
+const upload = multer({
+  storage: storage,
+}).single("questionImg");
+
+interface Question {
+  citizenHashedAadharNumber: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  //Here state and city index are 0 based indexed
+  stateIndex: string;
+  cityIndex: string;
+  area: string;
+}
+
+router.post("/", (req: Request<any, any, Question>, res: Response) => {
+  upload(req, res, (err) => {
+    if (err) {
+      return res.status(500).send("Image upload error " + err);
+    }
+    let questionImgUrl = "";
+    if (req.file) {
+      //TODO: upload image to AWS S3 here
+      //questionImgUrl = uploadImg(req.file.path);
+    }
+
+    db_pool.getConnection((err, db_con) => {
+      if (err) {
+        return res.status(500).send("Database Error " + err);
+      }
+
+      const query =
+        "INSERT INTO question (hashedAadharNumber, title, description, img_url, answerId, timestamp, stateIndex, cityIndex, area) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+      db_con.query(
+        query,
+        [
+          req.body.citizenHashedAadharNumber,
+          req.body.title,
+          req.body.description,
+          questionImgUrl,
+          -1,
+          Number(req.body.timestamp),
+          Number(req.body.stateIndex),
+          Number(req.body.cityIndex),
+          req.body.area,
+        ],
+        (err, rows) => {
+          db_con.release();
+          if (err) {
+            return res.status(500).send("Database Error " + err);
+          }
+          return res.send({ questionId: rows.insertId });
+        }
+      );
+    });
+  });
+});
+
+/////////////////////////////////////
 
 interface ReqParams {
   questionId: number;
