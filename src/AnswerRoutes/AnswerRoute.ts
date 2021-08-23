@@ -25,7 +25,10 @@ const upload = multer({
 }).single("answerImg");
 
 interface Answer {
-  //TODO: complete this
+  title: string;
+  description: string;
+  timestamp: string;
+  questionId: string;
 }
 
 router.post("/", (req: Request<any, any, Answer>, res: Response) => {
@@ -44,16 +47,58 @@ router.post("/", (req: Request<any, any, Answer>, res: Response) => {
         return res.status(500).send("Database Error " + err.message);
       }
 
-      //TODO: add proper fields
-      const query = "INSERT INTO answer () VALUES ()";
-
-      //TODO: add proper values
-      db_con.query(query, [], (err, rows) => {
-        db_con.release();
+      db_con.beginTransaction((err) => {
         if (err) {
+          db_con.release();
           return res.status(500).send("Database Error " + err.message);
         }
-        return res.send({ answerId: rows.insertId });
+
+        const insertAnsQuery =
+          "INSERT INTO answer (title, description, timestamp, img_url) VALUES (?, ?, ?, ?)";
+
+        db_con.query(
+          insertAnsQuery,
+          [
+            req.body.title,
+            req.body.description,
+            Number(req.body.timestamp),
+            answerImgUrl,
+          ],
+          (err, rows) => {
+            if (err) {
+              db_con.release();
+              return db_con.rollback(() => {
+                res.status(500).send("Database Error " + err.message);
+              });
+            }
+            const answerId = Number(rows.insertId);
+            const questionId = Number(req.body.questionId);
+            const giveRefOfAnsInQuestionQuery =
+              "UPDATE question SET answerId = ? WHERE questionId = ?";
+
+            db_con.query(
+              giveRefOfAnsInQuestionQuery,
+              [answerId, questionId],
+              (err) => {
+                if (err) {
+                  db_con.release();
+                  return db_con.rollback(() => {
+                    res.status(500).send("Database Error " + err.message);
+                  });
+                }
+                db_con.commit((err) => {
+                  db_con.release();
+                  if (err) {
+                    return db_con.rollback(() => {
+                      res.status(500).send("Database Error " + err.message);
+                    });
+                  }
+                  return res.send({ answerId: answerId });
+                });
+              }
+            );
+          }
+        );
       });
     });
   });
