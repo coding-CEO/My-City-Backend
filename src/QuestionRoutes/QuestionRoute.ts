@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import db_pool from "../utils/db";
 import multer from "multer";
 import fs from "fs";
+import { ImageHandler } from "../utils/ImageHandler";
 
 const router = express.Router();
 
@@ -98,14 +99,19 @@ interface Question {
 }
 
 router.post("/", (req: Request<any, any, Question>, res: Response) => {
-  upload(req, res, (err) => {
+  upload(req, res, async (err) => {
     if (err) {
       return res.status(500).send("Image upload error");
     }
     let questionImgUrl = "";
     if (req.file) {
-      //TODO: upload image to AWS S3 here
-      //questionImgUrl = uploadImg(req.file.path);
+      try {
+        questionImgUrl = await ImageHandler.imageUploadAndGetPublicUrl(
+          req.file.path
+        );
+      } catch (error) {
+        return res.status(500).send("Image upload error");
+      }
     }
 
     db_pool.getConnection((err, db_con) => {
