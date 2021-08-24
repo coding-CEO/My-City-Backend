@@ -3,3 +3,5 @@
 /node_modules
 .env
 template.ts
+/src/*/*.js
+/src/*.js
