@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
-import bcrypt from "bcryptjs";
 import { ErrorHandler } from "../utils/ErrorHandler";
+import md5 from "md5";
 
 const router = express.Router();
 
@@ -10,8 +10,8 @@ interface ReqBody {
 
 router.post("/", async (req: Request<any, any, ReqBody>, res: Response) => {
   try {
-    const salt = await bcrypt.genSalt(10);
-    let hashedAadharNumber = await bcrypt.hash(req.body.aadharNumber, salt);
+    const aadharNumber = req.body.aadharNumber;
+    const hashedAadharNumber: string = md5(aadharNumber);
     return res.send(hashedAadharNumber);
   } catch (error) {
     ErrorHandler.handle(error);
